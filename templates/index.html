@@ -1,0 +1,1051 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>AI Music Generator</title>
+    <script src="https://unpkg.com/tone@14.7.77/build/Tone.js"></script>
+    <script src="https://unpkg.com/@tonejs/midi"></script>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          sans-serif;
+        background: #0f172a;
+        color: #f1f5f9;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        margin: 0;
+        padding: 20px;
+        box-sizing: border-box;
+      }
+      .card {
+        background: #1e293b;
+        padding: 2.5rem;
+        border-radius: 16px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1),
+          0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        width: 480px;
+        max-width: 100%;
+        text-align: center;
+        position: relative;
+      }
+      h1 {
+        margin-top: 0;
+        color: #38bdf8;
+      }
+
+      .input-group {
+        margin: 20px 0;
+      }
+
+      input[type="text"] {
+        width: 100%;
+        padding: 12px;
+        box-sizing: border-box;
+        border-radius: 8px;
+        border: 1px solid #475569;
+        background: #334155;
+        color: white;
+        font-size: 16px;
+        margin-bottom: 10px;
+      }
+      input[type="text"]:focus {
+        outline: 2px solid #38bdf8;
+        border-color: transparent;
+      }
+
+      button {
+        width: 100%;
+        padding: 12px;
+        background: linear-gradient(135deg, #38bdf8 0%, #3b82f6 100%);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: transform 0.1s;
+      }
+      button:active {
+        transform: scale(0.98);
+      }
+      button:disabled {
+        background: #475569;
+        cursor: not-allowed;
+      }
+
+      .secondary-btn {
+        background: #475569;
+        margin-top: 10px;
+      }
+
+      .settings-btn {
+        position: absolute;
+        top: 15px;
+        right: 15px;
+        width: auto;
+        padding: 8px 16px;
+        background: #334155;
+        font-size: 0.9em;
+        margin-top: 0;
+      }
+
+      /* Settings Modal */
+      .modal {
+        display: none;
+        position: fixed;
+        z-index: 1000;
+        left: 0;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.7);
+        align-items: center;
+        justify-content: center;
+      }
+      .modal.show {
+        display: flex;
+      }
+      .modal-content {
+        background: #1e293b;
+        padding: 2rem;
+        border-radius: 16px;
+        width: 500px;
+        max-width: 90%;
+        position: relative;
+      }
+      .modal-close {
+        position: absolute;
+        top: 15px;
+        right: 15px;
+        font-size: 24px;
+        cursor: pointer;
+        color: #94a3b8;
+        background: none;
+        border: none;
+        width: auto;
+        padding: 0;
+      }
+      .modal-close:hover {
+        color: #f1f5f9;
+      }
+      .modal h2 {
+        margin-top: 0;
+        color: #38bdf8;
+      }
+      .form-group {
+        margin: 15px 0;
+      }
+      .form-group label {
+        display: block;
+        margin-bottom: 5px;
+        color: #94a3b8;
+        font-size: 0.9em;
+      }
+      .form-group input,
+      .form-group select {
+        width: 100%;
+        padding: 10px;
+        box-sizing: border-box;
+        border-radius: 8px;
+        border: 1px solid #475569;
+        background: #334155;
+        color: white;
+        font-size: 14px;
+      }
+      .form-group input:focus,
+      .form-group select:focus {
+        outline: 2px solid #38bdf8;
+        border-color: transparent;
+      }
+      .form-group small {
+        display: block;
+        margin-top: 5px;
+        color: #64748b;
+        font-size: 0.8em;
+      }
+      .modal-actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 20px;
+      }
+      .modal-actions button {
+        flex: 1;
+      }
+
+      .status {
+        margin-top: 15px;
+        min-height: 20px;
+        font-size: 0.9em;
+        color: #94a3b8;
+      }
+      .controls {
+        margin-top: 20px;
+        display: none;
+      }
+
+      /* Preset Tags */
+      .presets {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        justify-content: center;
+        margin-bottom: 15px;
+      }
+      .preset-tag {
+        background: #334155;
+        border: 1px solid #475569;
+        color: #94a3b8;
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-size: 0.85em;
+        cursor: pointer;
+        transition: all 0.2s;
+      }
+      .preset-tag:hover {
+        background: #475569;
+        color: #f1f5f9;
+        border-color: #38bdf8;
+      }
+      .preset-tag.active {
+        background: #38bdf8;
+        color: #0f172a;
+        border-color: #38bdf8;
+      }
+
+      /* Options Row */
+      .options-row {
+        display: flex;
+        gap: 15px;
+        justify-content: center;
+        align-items: center;
+        margin: 15px 0;
+        flex-wrap: wrap;
+      }
+      .option-item {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.9em;
+        color: #94a3b8;
+      }
+      .option-item input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        accent-color: #38bdf8;
+        cursor: pointer;
+      }
+      .option-item select {
+        background: #334155;
+        border: 1px solid #475569;
+        color: #f1f5f9;
+        padding: 6px 10px;
+        border-radius: 6px;
+        font-size: 0.9em;
+        cursor: pointer;
+      }
+      .option-item select:focus {
+        outline: 2px solid #38bdf8;
+      }
+
+      /* Visualizer */
+      .visualizer-container {
+        margin-top: 20px;
+        display: none;
+      }
+      #pianoRoll {
+        background: #0f172a;
+        border-radius: 8px;
+        border: 1px solid #475569;
+        width: 100%;
+      }
+
+      /* Variations */
+      .variations-container {
+        display: none;
+        margin-top: 15px;
+      }
+      .variation-tabs {
+        display: flex;
+        gap: 8px;
+        justify-content: center;
+        margin-bottom: 10px;
+      }
+      .variation-tab {
+        background: #334155;
+        border: 1px solid #475569;
+        color: #94a3b8;
+        padding: 8px 16px;
+        border-radius: 8px;
+        font-size: 0.85em;
+        cursor: pointer;
+        transition: all 0.2s;
+        width: auto;
+      }
+      .variation-tab:hover {
+        background: #475569;
+      }
+      .variation-tab.active {
+        background: #38bdf8;
+        color: #0f172a;
+        border-color: #38bdf8;
+      }
+
+      .btn-row {
+        display: flex;
+        gap: 10px;
+      }
+      .btn-row button {
+        flex: 1;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>AI Music Generator</h1>
+      <p>v2</p>
+      <p>Describe music or click a preset to get started</p>
+      <button class="settings-btn" onclick="openSettings()">⚙️ Settings</button>
+
+      <!-- Preset Categories -->
+      <div class="presets" id="presets">
+        <span class="preset-tag" data-prompt="jazz improvisation piano"
+          >🎷 Jazz Improv</span
+        >
+        <span class="preset-tag" data-prompt="classical piano sonata"
+          >🎹 Piano Sonata</span
+        >
+        <span class="preset-tag" data-prompt="rock guitar riff"
+          >🎸 Rock Anthem</span
+        >
+        <span class="preset-tag" data-prompt="violin concerto melody"
+          >🎻 Violin Concerto</span
+        >
+        <span class="preset-tag" data-prompt="sad ballad piano">😢 Ballad</span>
+        <span class="preset-tag" data-prompt="triumphant march brass"
+          >� Triumphant March</span
+        >
+        <span class="preset-tag" data-prompt="bell chimes melody"
+          >� Bell Chimes</span
+        >
+        <span class="preset-tag" data-prompt="ambient space pad"
+          >🌌 Ambient Space</span
+        >
+        <span class="preset-tag" data-prompt="electronic synth wave"
+          >� Synth Wave</span
+        >
+        <span class="preset-tag" data-prompt="drum solo percussion"
+          >🥁 Drum Solo</span
+        >
+        <span class="preset-tag" data-prompt="folk tune acoustic guitar"
+          >🎶 Folk Tune</span
+        >
+        <span class="preset-tag" data-prompt="orchestral symphony"
+          >🏛️ Orchestral</span
+        >
+      </div>
+
+      <div class="input-group">
+        <input
+          type="text"
+          id="prompt"
+          placeholder="Describe sound..."
+          autocomplete="off"
+        />
+
+        <!-- Options Row -->
+        <div class="options-row">
+          <label class="option-item">
+            <input type="checkbox" id="loopMode" />
+            🔁 Loop
+          </label>
+          <label class="option-item">
+            Variations:
+            <select id="variationCount">
+              <option value="1">1</option>
+              <option value="2">2</option>
+              <option value="3" selected>3</option>
+              <option value="5">5</option>
+            </select>
+          </label>
+        </div>
+
+        <button id="genBtn" onclick="generateMidi()">
+          ✨ Generate with Gemini
+        </button>
+      </div>
+
+      <div id="status" class="status"></div>
+
+      <!-- Variation Tabs -->
+      <div class="variations-container" id="variationsContainer">
+        <div class="variation-tabs" id="variationTabs"></div>
+      </div>
+
+      <!-- Piano Roll Visualizer -->
+      <div class="visualizer-container" id="visualizerContainer">
+        <canvas id="pianoRoll" width="420" height="120"></canvas>
+      </div>
+
+      <div class="controls" id="controls">
+        <div class="btn-row">
+          <!-- <button class="secondary-btn" onclick="playMidi()">
+            ▶ Play MIDI
+          </button> -->
+          <button
+            id="playWavBtn"
+            class="secondary-btn"
+            onclick="playWav()"
+            style="display: none"
+          >
+            ▶ Play WAV
+          </button>
+          <button class="secondary-btn" onclick="stopMidi()">⏹ Stop</button>
+        </div>
+        <div class="btn-row">
+          <button class="secondary-btn" onclick="downloadMidi()">
+            ⬇ Download MIDI
+          </button>
+          <button
+            id="downloadWavBtn"
+            class="secondary-btn"
+            onclick="downloadWav()"
+            style="display: none"
+          >
+            ⬇ Download WAV
+          </button>
+        </div>
+      </div>
+      <div id="wavStatus" class="status"></div>
+      <audio id="wavAudio" style="display: none"></audio>
+    </div>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="modal">
+      <div class="modal-content">
+        <button class="modal-close" onclick="closeSettings()">×</button>
+        <h2>LLM Configuration</h2>
+        <form id="settingsForm" onsubmit="saveSettings(event)">
+          <div class="form-group">
+            <label for="provider">Provider</label>
+            <select id="provider" onchange="updateProviderFields()">
+              <option value="gemini">Gemini (Recommended)</option>
+              <option value="openai">OpenAI</option>
+              <option value="anthropic">Anthropic</option>
+              <option value="custom">Custom</option>
+            </select>
+          </div>
+          <div class="form-group" id="baseUrlGroup" style="display: none">
+            <label for="baseUrl">Base URL</label>
+            <input
+              type="text"
+              id="baseUrl"
+              placeholder="https://api.example.com/v1"
+            />
+            <small>Leave empty to use provider default</small>
+          </div>
+          <div class="form-group">
+            <label for="modelName">Model Name</label>
+            <input
+              type="text"
+              id="modelName"
+              placeholder="gemini-2.5-pro"
+              required
+            />
+            <!-- <small id="modelHint"
+              >For Gemini, use format: gemini/model-name</small
+            > -->
+          </div>
+          <div class="form-group">
+            <label for="apiKey">API Key</label>
+            <input
+              type="password"
+              id="apiKey"
+              placeholder="Enter your API key"
+              required
+            />
+            <small>Your API key is stored locally in your browser</small>
+          </div>
+          <div class="modal-actions">
+            <button
+              type="button"
+              class="secondary-btn"
+              onclick="closeSettings()"
+            >
+              Cancel
+            </button>
+            <button type="submit">Save Settings</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <script>
+      // Settings Management
+      const DEFAULT_SETTINGS = {
+        provider: "gemini",
+        baseUrl: "",
+        modelName: "gemini/gemini-2.5-pro",
+        apiKey: "",
+      };
+
+      function loadSettings() {
+        const saved = localStorage.getItem("llmSettings");
+        return saved ? JSON.parse(saved) : DEFAULT_SETTINGS;
+      }
+
+      function saveSettingsToStorage(settings) {
+        localStorage.setItem("llmSettings", JSON.stringify(settings));
+      }
+
+      function openSettings() {
+        const settings = loadSettings();
+        document.getElementById("provider").value = settings.provider;
+        document.getElementById("baseUrl").value = settings.baseUrl || "";
+        document.getElementById("modelName").value = settings.modelName;
+        document.getElementById("apiKey").value = settings.apiKey || "";
+        updateProviderFields();
+        document.getElementById("settingsModal").classList.add("show");
+      }
+
+      function closeSettings() {
+        document.getElementById("settingsModal").classList.remove("show");
+      }
+
+      function updateProviderFields() {
+        const provider = document.getElementById("provider").value;
+        const baseUrlGroup = document.getElementById("baseUrlGroup");
+        const modelInput = document.getElementById("modelName");
+        const modelHint = document.getElementById("modelHint");
+
+        if (provider === "custom") {
+          baseUrlGroup.style.display = "block";
+          modelHint.textContent =
+            "Enter the model name as accepted by your API";
+        } else {
+          baseUrlGroup.style.display = "none";
+          if (provider === "gemini") {
+            modelInput.placeholder = "gemini-2.5-pro";
+            // modelHint.textContent = "For Gemini, use format: gemini/model-name";
+            modelInput.value = "gemini-2.5-pro";
+          } else if (provider === "openai") {
+            modelInput.placeholder = "gpt-4";
+            // modelHint.textContent =
+            //   "For OpenAI, use format: gpt-4, gpt-3.5-turbo, etc.";
+          } else if (provider === "anthropic") {
+            modelInput.placeholder = "claude-3-opus-20240229";
+            // modelHint.textContent =
+            //   "For Anthropic, use format: claude-3-opus-20240229, etc.";
+          }
+        }
+      }
+
+      function saveSettings(event) {
+        event.preventDefault();
+        const settings = {
+          provider: document.getElementById("provider").value,
+          baseUrl: document.getElementById("baseUrl").value.trim(),
+          modelName: document.getElementById("modelName").value.trim(),
+          apiKey: document.getElementById("apiKey").value.trim(),
+        };
+
+        if (!settings.modelName || !settings.apiKey) {
+          alert("Please provide both model name and API key");
+          return;
+        }
+
+        saveSettingsToStorage(settings);
+        closeSettings();
+        alert("Settings saved successfully!");
+      }
+
+      // Check if settings exist on page load
+      window.addEventListener("DOMContentLoaded", () => {
+        const settings = loadSettings();
+        if (!settings.apiKey) {
+          // Show settings modal if no API key is configured
+          setTimeout(() => {
+            alert("Please configure your LLM settings to get started");
+            openSettings();
+          }, 500);
+        }
+      });
+
+      let variations = []; // Array of {blob, data, wavBlob, wavUrl} for each variation
+      let currentVariationIndex = 0;
+      let synth = null;
+      let isPlaying = false;
+      let isStopping = false; // Prevent race conditions
+      let animationId = null;
+      const wavAudio = document.getElementById("wavAudio");
+
+      // Get current selected variation
+      function getCurrentMidi() {
+        return variations[currentVariationIndex] || null;
+      }
+
+      // Preset tag click handler
+      document.getElementById("presets").addEventListener("click", (e) => {
+        if (e.target.classList.contains("preset-tag")) {
+          const prompt = e.target.dataset.prompt;
+          document.getElementById("prompt").value = prompt;
+
+          // Visual feedback
+          document
+            .querySelectorAll(".preset-tag")
+            .forEach((t) => t.classList.remove("active"));
+          e.target.classList.add("active");
+        }
+      });
+
+      async function generateMidi() {
+        const prompt = document.getElementById("prompt").value;
+        const btn = document.getElementById("genBtn");
+        const status = document.getElementById("status");
+        const controls = document.getElementById("controls");
+        const variationsContainer = document.getElementById(
+          "variationsContainer"
+        );
+        const visualizerContainer = document.getElementById(
+          "visualizerContainer"
+        );
+        const loopMode = document.getElementById("loopMode").checked;
+        const variationCount = parseInt(
+          document.getElementById("variationCount").value
+        );
+
+        if (!prompt) return;
+
+        btn.disabled = true;
+        controls.style.display = "none";
+        variationsContainer.style.display = "none";
+        visualizerContainer.style.display = "none";
+        document.getElementById("playWavBtn").style.display = "none";
+        document.getElementById("downloadWavBtn").style.display = "none";
+        document.getElementById("wavStatus").innerText = "";
+
+        stopMidi(); // Stop any playing audio
+        variations = [];
+        currentVariationIndex = 0;
+
+        status.innerText = `AI is composing ${variationCount} variation${
+          variationCount > 1 ? "s" : ""
+        } in parallel...`;
+
+        try {
+          // Load LLM settings
+          const llmSettings = loadSettings();
+          if (!llmSettings.apiKey) {
+            status.innerText = "Please configure your API key in settings";
+            btn.disabled = false;
+            return;
+          }
+
+          // Generate all variations in parallel
+          const fetchPromises = [];
+          for (let i = 0; i < variationCount; i++) {
+            const promise = fetch("/generate_midi", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                prompt: prompt,
+                loop: loopMode,
+                variation_seed: i,
+                llm_settings: llmSettings,
+              }),
+            }).then(async (response) => {
+              if (!response.ok) {
+                let err = await response.json();
+                throw new Error(err.error || "Server error");
+              }
+              const blob = await response.blob();
+              const arrayBuffer = await blob.arrayBuffer();
+              const midiData = new Midi(arrayBuffer);
+              return { blob, data: midiData, index: i };
+            });
+            fetchPromises.push(promise);
+          }
+
+          // Wait for all to complete
+          const results = await Promise.all(fetchPromises);
+
+          // Sort by index to maintain order
+          results.sort((a, b) => a.index - b.index);
+          variations = results.map((r) => ({
+            blob: r.blob,
+            data: r.data,
+            wavBlob: null,
+            wavUrl: null,
+          }));
+
+          status.innerText = `Generated ${variationCount} variation${
+            variationCount > 1 ? "s" : ""
+          }!`;
+          controls.style.display = "block";
+          visualizerContainer.style.display = "block";
+
+          // Show variation tabs if more than 1
+          if (variationCount > 1) {
+            variationsContainer.style.display = "block";
+            renderVariationTabs();
+          }
+
+          // Draw initial visualization
+          drawPianoRoll();
+
+          // Now, generate the WAV for the first variation
+          generateWav(currentVariationIndex);
+        } catch (e) {
+          status.innerText = "Error: " + e.message;
+          console.error(e);
+        } finally {
+          btn.disabled = false;
+        }
+      }
+
+      async function generateWav(index) {
+        const variation = variations[index];
+        if (!variation || !variation.blob) return;
+
+        const wavStatus = document.getElementById("wavStatus");
+        const playWavBtn = document.getElementById("playWavBtn");
+        const downloadWavBtn = document.getElementById("downloadWavBtn");
+
+        wavStatus.innerText = `Converting variation #${
+          index + 1
+        } to high-quality WAV...`;
+        playWavBtn.style.display = "none";
+        downloadWavBtn.style.display = "none";
+
+        try {
+          const formData = new FormData();
+          formData.append("midi_file", variation.blob, "music.mid");
+
+          const response = await fetch("/convert_midi_to_wav", {
+            method: "POST",
+            body: formData,
+          });
+
+          if (!response.ok) {
+            const err = await response.json();
+            throw new Error(err.error || "Failed to convert to WAV");
+          }
+
+          const wavBlob = await response.blob();
+          const wavUrl = URL.createObjectURL(wavBlob);
+
+          variations[index].wavBlob = wavBlob;
+          variations[index].wavUrl = wavUrl;
+
+          wavStatus.innerText = `Variation #${index + 1} WAV is ready.`;
+          playWavBtn.style.display = "inline-block";
+          downloadWavBtn.style.display = "inline-block";
+        } catch (e) {
+          wavStatus.innerText = "Error creating WAV: " + e.message;
+          console.error(e);
+        }
+      }
+
+      function renderVariationTabs() {
+        const tabs = document.getElementById("variationTabs");
+        tabs.innerHTML = "";
+
+        variations.forEach((_, i) => {
+          const tab = document.createElement("span");
+          tab.className = `variation-tab ${
+            i === currentVariationIndex ? "active" : ""
+          }`;
+          tab.innerText = `#${i + 1}`;
+          tab.onclick = () => selectVariation(i);
+          tabs.appendChild(tab);
+        });
+      }
+
+      function selectVariation(index) {
+        if (index === currentVariationIndex) return;
+
+        const wasPlaying = isPlaying || !wavAudio.paused;
+
+        // Stop current playback safely
+        stopMidi();
+
+        currentVariationIndex = index;
+        renderVariationTabs();
+        drawPianoRoll();
+
+        const current = getCurrentMidi();
+        if (current.wavBlob) {
+          document.getElementById("wavStatus").innerText = `Variation #${
+            index + 1
+          } WAV is ready.`;
+          document.getElementById("playWavBtn").style.display = "inline-block";
+          document.getElementById("downloadWavBtn").style.display =
+            "inline-block";
+        } else {
+          generateWav(index);
+        }
+
+        // Restart playback on new variation
+        if (wasPlaying) {
+          // Small delay to ensure clean state
+          setTimeout(() => playMidi(), 50);
+        }
+      }
+
+      // Piano Roll Visualizer
+      function drawPianoRoll(currentTime = -1) {
+        const canvas = document.getElementById("pianoRoll");
+        const ctx = canvas.getContext("2d");
+        const midi = getCurrentMidi();
+
+        if (!midi) return;
+
+        const width = canvas.width;
+        const height = canvas.height;
+
+        ctx.fillStyle = "#0f172a";
+        ctx.fillRect(0, 0, width, height);
+
+        const allNotes = [];
+        midi.data.tracks.forEach((track) => {
+          track.notes.forEach((note) => {
+            allNotes.push(note);
+          });
+        });
+
+        if (allNotes.length === 0) return;
+
+        // Find bounds
+        const minPitch = Math.min(...allNotes.map((n) => n.midi));
+        const maxPitch = Math.max(...allNotes.map((n) => n.midi));
+        const maxTime = Math.max(...allNotes.map((n) => n.time + n.duration));
+
+        const pitchRange = Math.max(maxPitch - minPitch + 1, 12);
+        const noteHeight = height / pitchRange;
+        const timeScale = width / maxTime;
+
+        // Draw grid lines
+        ctx.strokeStyle = "#1e293b";
+        ctx.lineWidth = 1;
+        for (let i = 0; i <= pitchRange; i++) {
+          const y = height - i * noteHeight;
+          ctx.beginPath();
+          ctx.moveTo(0, y);
+          ctx.lineTo(width, y);
+          ctx.stroke();
+        }
+
+        // Draw playhead if playing
+        if (currentTime >= 0) {
+          const x = currentTime * timeScale;
+          ctx.strokeStyle = "#ef4444";
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(x, 0);
+          ctx.lineTo(x, height);
+          ctx.stroke();
+        }
+
+        // Draw notes
+        allNotes.forEach((note) => {
+          const x = note.time * timeScale;
+          const w = note.duration * timeScale;
+          const y = height - (note.midi - minPitch + 1) * noteHeight;
+          const h = noteHeight - 2;
+
+          // Color based on whether note is currently playing
+          const isActive =
+            currentTime >= 0 &&
+            currentTime >= note.time &&
+            currentTime < note.time + note.duration;
+
+          if (isActive) {
+            ctx.fillStyle = "#f472b6"; // Pink when active
+          } else {
+            ctx.fillStyle = "#38bdf8"; // Cyan normally
+          }
+
+          ctx.beginPath();
+          ctx.roundRect(x + 1, y, Math.max(w - 2, 4), h, 3);
+          ctx.fill();
+        });
+      }
+
+      async function playMidi() {
+        const midi = getCurrentMidi();
+        if (!midi || isStopping) return;
+
+        stopMidi(); // Stop WAV if it's playing
+
+        await Tone.start();
+
+        // Clean up previous synth safely
+        if (synth) {
+          try {
+            synth.releaseAll();
+            synth.dispose();
+          } catch (e) {
+            // Ignore disposal errors
+          }
+          synth = null;
+        }
+
+        synth = new Tone.PolySynth(Tone.Synth, {
+          oscillator: { type: "square" },
+          envelope: { attack: 0.01, decay: 0.1, sustain: 0.1, release: 0.5 },
+        }).toDestination();
+
+        const now = Tone.now() + 0.1;
+        const startTime = now;
+        isPlaying = true;
+
+        // Store reference to current synth for animation closure
+        const currentSynth = synth;
+
+        // Get max duration for animation
+        let maxEndTime = 0;
+        midi.data.tracks.forEach((track) => {
+          track.notes.forEach((note) => {
+            const endTime = note.time + note.duration;
+            if (endTime > maxEndTime) maxEndTime = endTime;
+
+            // Only trigger if synth is still valid
+            if (currentSynth === synth && isPlaying) {
+              currentSynth.triggerAttackRelease(
+                note.name,
+                note.duration,
+                now + note.time,
+                note.velocity
+              );
+            }
+          });
+        });
+
+        // Animate piano roll
+        function animate() {
+          // Check if we should stop (synth changed or stopped)
+          if (!isPlaying || currentSynth !== synth) {
+            return;
+          }
+
+          const elapsed = Tone.now() - startTime;
+          drawPianoRoll(elapsed);
+
+          if (elapsed < maxEndTime) {
+            animationId = requestAnimationFrame(animate);
+          } else {
+            isPlaying = false;
+            drawPianoRoll(-1);
+          }
+        }
+        animate();
+      }
+
+      function playWav() {
+        const current = getCurrentMidi();
+        if (current && current.wavUrl) {
+          stopMidi(); // Stop MIDI if it's playing
+          wavAudio.src = current.wavUrl;
+          wavAudio.play();
+          isPlaying = true;
+
+          function animate() {
+            // Check if we should stop (audio paused, ended, or flag cleared)
+            if (!isPlaying || wavAudio.paused || wavAudio.ended) {
+              isPlaying = false;
+              drawPianoRoll(-1);
+              return;
+            }
+
+            // Use audio element's current time for accurate sync
+            const currentTime = wavAudio.currentTime;
+            drawPianoRoll(currentTime);
+
+            animationId = requestAnimationFrame(animate);
+          }
+          animate();
+        }
+      }
+
+      function stopMidi() {
+        if (isStopping) return;
+        isStopping = true;
+
+        isPlaying = false;
+
+        if (!wavAudio.paused) {
+          wavAudio.pause();
+          wavAudio.currentTime = 0;
+        }
+
+        if (animationId) {
+          cancelAnimationFrame(animationId);
+          animationId = null;
+        }
+
+        if (synth) {
+          try {
+            synth.releaseAll();
+            synth.dispose();
+          } catch (e) {
+            // Synth may already be disposed, ignore
+          }
+          synth = null;
+        }
+
+        try {
+          Tone.Transport.stop();
+        } catch (e) {
+          // Ignore transport errors
+        }
+
+        drawPianoRoll(-1);
+        isStopping = false;
+      }
+
+      function downloadMidi() {
+        const midi = getCurrentMidi();
+        if (!midi) return;
+
+        const url = window.URL.createObjectURL(midi.blob);
+        const a = document.createElement("a");
+        a.style.display = "none";
+        a.href = url;
+        const variationSuffix =
+          variations.length > 1 ? `_v${currentVariationIndex + 1}` : "";
+        a.download = `gemini_music${variationSuffix}.mid`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+      }
+
+      function downloadWav() {
+        const current = getCurrentMidi();
+        if (!current || !current.wavBlob) return;
+
+        const url = window.URL.createObjectURL(current.wavBlob);
+        const a = document.createElement("a");
+        a.style.display = "none";
+        a.href = url;
+        const variationSuffix =
+          variations.length > 1 ? `_v${currentVariationIndex + 1}` : "";
+        a.download = `gemini_music${variationSuffix}.wav`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+      }
+
+      document.getElementById("prompt").addEventListener("keypress", (e) => {
+        if (e.key === "Enter") generateMidi();
+      });
+
+      // Clear preset selection when typing
+      document.getElementById("prompt").addEventListener("input", () => {
+        document
+          .querySelectorAll(".preset-tag")
+          .forEach((t) => t.classList.remove("active"));
+      });
+    </script>
+  </body>
+</html>
