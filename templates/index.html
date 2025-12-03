@@ -3,7 +3,6 @@
   <head>
     <meta charset="UTF-8" />
     <title>Midi Music Generator</title>
-    <script src="https://unpkg.com/@tonejs/midi"></script>
     <style>
       body {
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
@@ -88,6 +87,31 @@
         background: #334155;
         font-size: 0.9em;
         margin-top: 0;
+      }
+
+      .github-btn {
+        position: absolute;
+        top: 15px;
+        left: 15px;
+        width: auto;
+        padding: 8px 16px;
+        background: #334155;
+        font-size: 0.9em;
+        margin-top: 0;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        text-decoration: none;
+        color: #f1f5f9;
+        transition: background 0.2s;
+      }
+      .github-btn:hover {
+        background: #475569;
+      }
+      .github-icon {
+        width: 18px;
+        height: 18px;
+        fill: currentColor;
       }
 
       /* Settings Modal */
@@ -312,12 +336,16 @@
         text-transform: uppercase;
         letter-spacing: 0.5px;
       }
+      #examplesContainer {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 10px;
+      }
       .example-item {
         background: #0f172a;
         border: 1px solid #334155;
         border-radius: 8px;
         padding: 12px;
-        margin-bottom: 10px;
         display: flex;
         align-items: center;
         gap: 12px;
@@ -370,6 +398,23 @@
       <h1>Midi Music Generator</h1>
       <p>v2</p>
       <p>Describe music or click a preset to get started</p>
+      <a
+        href="https://github.com/addy999/midi-music-generator"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="github-btn"
+      >
+        <svg
+          class="github-icon"
+          viewBox="0 0 16 16"
+          xmlns="http://www.w3.org/2000/svg"
+        >
+          <path
+            d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"
+          />
+        </svg>
+        GitHub
+      </a>
       <button class="settings-btn" onclick="openSettings()">⚙️ Settings</button>
 
       <!-- Preset Categories -->
@@ -755,11 +800,14 @@
         );
         currentExampleBtn = btn;
 
+        // Enable looping for examples
+        currentExampleAudio.loop = true;
+
         currentExampleAudio.play();
         btn.innerHTML = "⏸";
         btn.classList.add("playing");
 
-        // Handle when audio ends
+        // Handle when audio ends (won't happen with loop, but good for fallback)
         currentExampleAudio.onended = () => {
           btn.innerHTML = "▶";
           btn.classList.remove("playing");
