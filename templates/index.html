@@ -2,8 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <title>AI Music Generator</title>
-    <script src="https://unpkg.com/tone@14.7.77/build/Tone.js"></script>
+    <title>Midi Music Generator</title>
     <script src="https://unpkg.com/@tonejs/midi"></script>
     <style>
       body {
@@ -299,11 +298,76 @@
       .btn-row button {
         flex: 1;
       }
+
+      /* Examples Section */
+      .examples-section {
+        margin-top: 30px;
+        padding-top: 20px;
+        border-top: 1px solid #334155;
+      }
+      .examples-section h3 {
+        color: #94a3b8;
+        font-size: 0.9em;
+        margin-bottom: 15px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+      .example-item {
+        background: #0f172a;
+        border: 1px solid #334155;
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        transition: border-color 0.2s;
+      }
+      .example-item:hover {
+        border-color: #475569;
+      }
+      .example-play-btn {
+        background: #334155;
+        border: none;
+        color: #f1f5f9;
+        width: 36px;
+        height: 36px;
+        border-radius: 50%;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 14px;
+        transition: background 0.2s;
+        flex-shrink: 0;
+        padding: 0;
+      }
+      .example-play-btn:hover {
+        background: #475569;
+      }
+      .example-play-btn.playing {
+        background: #38bdf8;
+        color: #0f172a;
+      }
+      .example-info {
+        flex: 1;
+        text-align: left;
+      }
+      .example-name {
+        color: #f1f5f9;
+        font-size: 0.9em;
+        font-weight: 500;
+        margin-bottom: 4px;
+      }
+      .example-duration {
+        color: #64748b;
+        font-size: 0.75em;
+      }
     </style>
   </head>
   <body>
     <div class="card">
-      <h1>AI Music Generator</h1>
+      <h1>Midi Music Generator</h1>
       <p>v2</p>
       <p>Describe music or click a preset to get started</p>
       <button class="settings-btn" onclick="openSettings()">⚙️ Settings</button>
@@ -358,7 +422,7 @@
         <div class="options-row">
           <label class="option-item">
             <input type="checkbox" id="loopMode" />
-            🔁 Loop
+            🔁 Loopable
           </label>
           <label class="option-item">
             Variations:
@@ -371,9 +435,14 @@
           </label>
         </div>
 
-        <button id="genBtn" onclick="generateMidi()">
-          ✨ Generate with Gemini
-        </button>
+        <button id="genBtn" onclick="generateMidi()">✨ Generate Music</button>
+        <div
+          id="apiKeyWarning"
+          class="status"
+          style="color: #f59e0b; display: none"
+        >
+          ⚠️ API key not configured. Click Settings to get started.
+        </div>
       </div>
 
       <div id="status" class="status"></div>
@@ -390,9 +459,6 @@
 
       <div class="controls" id="controls">
         <div class="btn-row">
-          <!-- <button class="secondary-btn" onclick="playMidi()">
-            ▶ Play MIDI
-          </button> -->
           <button
             id="playWavBtn"
             class="secondary-btn"
@@ -401,7 +467,7 @@
           >
             ▶ Play WAV
           </button>
-          <button class="secondary-btn" onclick="stopMidi()">⏹ Stop</button>
+          <button class="secondary-btn" onclick="stopWav()">⏹ Stop</button>
         </div>
         <div class="btn-row">
           <button class="secondary-btn" onclick="downloadMidi()">
@@ -419,6 +485,12 @@
       </div>
       <div id="wavStatus" class="status"></div>
       <audio id="wavAudio" style="display: none"></audio>
+
+      <!-- Examples Section -->
+      <div class="examples-section">
+        <h3>🎵 Examples</h3>
+        <div id="examplesContainer"></div>
+      </div>
     </div>
 
     <!-- Settings Modal -->
@@ -465,7 +537,11 @@
               placeholder="Enter your API key"
               required
             />
-            <small>Your API key is stored locally in your browser</small>
+            <small
+              >Your API key is stored locally in your browser and sent directly
+              to the provider to process requests. It is never stored or logged
+              on our server.</small
+            >
           </div>
           <div class="modal-actions">
             <button
@@ -486,7 +562,7 @@
       const DEFAULT_SETTINGS = {
         provider: "gemini",
         baseUrl: "",
-        modelName: "gemini/gemini-2.5-pro",
+        modelName: "gemini-2.5-pro",
         apiKey: "",
       };
 
@@ -517,26 +593,29 @@
         const provider = document.getElementById("provider").value;
         const baseUrlGroup = document.getElementById("baseUrlGroup");
         const modelInput = document.getElementById("modelName");
-        const modelHint = document.getElementById("modelHint");
+        // const modelHint = document.getElementById("modelHint");
 
         if (provider === "custom") {
           baseUrlGroup.style.display = "block";
-          modelHint.textContent =
-            "Enter the model name as accepted by your API";
+          // modelHint.textContent =
+          //   "Enter the model name as accepted by your API";
         } else {
           baseUrlGroup.style.display = "none";
           if (provider === "gemini") {
             modelInput.placeholder = "gemini-2.5-pro";
-            // modelHint.textContent = "For Gemini, use format: gemini/model-name";
-            modelInput.value = "gemini-2.5-pro";
+            if (!modelInput.value || modelInput.value.includes("/")) {
+              modelInput.value = "gemini-2.5-pro";
+            }
           } else if (provider === "openai") {
             modelInput.placeholder = "gpt-4";
-            // modelHint.textContent =
-            //   "For OpenAI, use format: gpt-4, gpt-3.5-turbo, etc.";
+            if (modelInput.value && modelInput.value.includes("/")) {
+              modelInput.value = "";
+            }
           } else if (provider === "anthropic") {
-            modelInput.placeholder = "claude-3-opus-20240229";
-            // modelHint.textContent =
-            //   "For Anthropic, use format: claude-3-opus-20240229, etc.";
+            modelInput.placeholder = "claude-3-5-sonnet-20241022";
+            if (modelInput.value && modelInput.value.includes("/")) {
+              modelInput.value = "";
+            }
           }
         }
       }
@@ -557,28 +636,157 @@
 
         saveSettingsToStorage(settings);
         closeSettings();
+
+        // Update UI visibility
+        const apiKeyWarning = document.getElementById("apiKeyWarning");
+        const genBtn = document.getElementById("genBtn");
+        apiKeyWarning.style.display = "none";
+        genBtn.style.display = "block";
+
         alert("Settings saved successfully!");
       }
 
       // Check if settings exist on page load
       window.addEventListener("DOMContentLoaded", () => {
         const settings = loadSettings();
+        const apiKeyWarning = document.getElementById("apiKeyWarning");
+        const genBtn = document.getElementById("genBtn");
+
         if (!settings.apiKey) {
-          // Show settings modal if no API key is configured
-          setTimeout(() => {
-            alert("Please configure your LLM settings to get started");
-            openSettings();
-          }, 500);
+          // Show warning instead of alert
+          apiKeyWarning.style.display = "block";
+          genBtn.style.display = "none";
+        } else {
+          apiKeyWarning.style.display = "none";
+          genBtn.style.display = "block";
         }
+
+        // Load examples
+        loadExamples();
       });
 
-      let variations = []; // Array of {blob, data, wavBlob, wavUrl} for each variation
+      // Examples functionality
+      const examples = [
+        {
+          name: "Folk Tune Acoustic Guitar",
+          file: "folk-tune-acoustic-guitar.wav",
+        },
+        { name: "Piano Sonata", file: "piano-sonata.wav" },
+        { name: "Rock Guitar Riff", file: "rocky.wav" },
+        { name: "Violin Concerto", file: "violins.wav" },
+      ];
+
+      let currentExampleAudio = null;
+      let currentExampleBtn = null;
+
+      function loadExamples() {
+        const container = document.getElementById("examplesContainer");
+
+        examples.forEach((example) => {
+          const item = document.createElement("div");
+          item.className = "example-item";
+
+          const playBtn = document.createElement("button");
+          playBtn.className = "example-play-btn";
+          playBtn.innerHTML = "▶";
+          playBtn.onclick = () => toggleExamplePlay(example, playBtn);
+
+          const info = document.createElement("div");
+          info.className = "example-info";
+
+          const name = document.createElement("div");
+          name.className = "example-name";
+          name.textContent = example.name;
+
+          const duration = document.createElement("div");
+          duration.className = "example-duration";
+          duration.textContent = "Loading...";
+
+          info.appendChild(name);
+          info.appendChild(duration);
+
+          item.appendChild(playBtn);
+          item.appendChild(info);
+
+          container.appendChild(item);
+
+          // Load audio to get duration
+          const audio = new Audio(
+            `/static/samples/${encodeURIComponent(example.file)}`
+          );
+          audio.addEventListener("loadedmetadata", () => {
+            const mins = Math.floor(audio.duration / 60);
+            const secs = Math.floor(audio.duration % 60);
+            duration.textContent = `${mins}:${secs
+              .toString()
+              .padStart(2, "0")}`;
+          });
+        });
+      }
+
+      function toggleExamplePlay(example, btn) {
+        // If clicking the same button, toggle play/pause
+        if (currentExampleAudio && currentExampleBtn === btn) {
+          if (currentExampleAudio.paused) {
+            currentExampleAudio.play();
+            btn.innerHTML = "⏸";
+            btn.classList.add("playing");
+          } else {
+            currentExampleAudio.pause();
+            btn.innerHTML = "▶";
+            btn.classList.remove("playing");
+          }
+          return;
+        }
+
+        // Stop currently playing audio
+        if (currentExampleAudio) {
+          currentExampleAudio.pause();
+          currentExampleAudio.currentTime = 0;
+          if (currentExampleBtn) {
+            currentExampleBtn.innerHTML = "▶";
+            currentExampleBtn.classList.remove("playing");
+          }
+        }
+
+        // Create and play new audio
+        currentExampleAudio = new Audio(
+          `/static/samples/${encodeURIComponent(example.file)}`
+        );
+        currentExampleBtn = btn;
+
+        currentExampleAudio.play();
+        btn.innerHTML = "⏸";
+        btn.classList.add("playing");
+
+        // Handle when audio ends
+        currentExampleAudio.onended = () => {
+          btn.innerHTML = "▶";
+          btn.classList.remove("playing");
+          currentExampleAudio = null;
+          currentExampleBtn = null;
+        };
+
+        // Handle errors
+        currentExampleAudio.onerror = () => {
+          btn.innerHTML = "▶";
+          btn.classList.remove("playing");
+          currentExampleAudio = null;
+          currentExampleBtn = null;
+          alert("Error loading example audio");
+        };
+      }
+
+      let variations = []; // Array of {blob, data, wavBlob, wavUrl, audioBuffer} for each variation
       let currentVariationIndex = 0;
-      let synth = null;
       let isPlaying = false;
       let isStopping = false; // Prevent race conditions
       let animationId = null;
       const wavAudio = document.getElementById("wavAudio");
+      let audioContext = null;
+      let audioSource = null;
+      let startTime = 0;
+      let startOffset = 0;
 
       // Get current selected variation
       function getCurrentMidi() {
@@ -625,7 +833,7 @@
         document.getElementById("downloadWavBtn").style.display = "none";
         document.getElementById("wavStatus").innerText = "";
 
-        stopMidi(); // Stop any playing audio
+        stopWav(); // Stop any playing audio
         variations = [];
         currentVariationIndex = 0;
 
@@ -735,8 +943,17 @@
           const wavBlob = await response.blob();
           const wavUrl = URL.createObjectURL(wavBlob);
 
+          // Decode audio for gapless looping
+          if (!audioContext) {
+            audioContext = new (window.AudioContext ||
+              window.webkitAudioContext)();
+          }
+          const arrayBuffer = await wavBlob.arrayBuffer();
+          const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
           variations[index].wavBlob = wavBlob;
           variations[index].wavUrl = wavUrl;
+          variations[index].audioBuffer = audioBuffer;
 
           wavStatus.innerText = `Variation #${index + 1} WAV is ready.`;
           playWavBtn.style.display = "inline-block";
@@ -768,7 +985,7 @@
         const wasPlaying = isPlaying || !wavAudio.paused;
 
         // Stop current playback safely
-        stopMidi();
+        stopWav();
 
         currentVariationIndex = index;
         renderVariationTabs();
@@ -789,7 +1006,7 @@
         // Restart playback on new variation
         if (wasPlaying) {
           // Small delay to ensure clean state
-          setTimeout(() => playMidi(), 50);
+          setTimeout(() => playWav(), 50);
         }
       }
 
@@ -872,132 +1089,79 @@
         });
       }
 
-      async function playMidi() {
-        const midi = getCurrentMidi();
-        if (!midi || isStopping) return;
+      function playWav() {
+        const current = getCurrentMidi();
+        if (!current || !current.audioBuffer) return;
 
-        stopMidi(); // Stop WAV if it's playing
+        stopWav(); // Stop if already playing
 
-        await Tone.start();
-
-        // Clean up previous synth safely
-        if (synth) {
-          try {
-            synth.releaseAll();
-            synth.dispose();
-          } catch (e) {
-            // Ignore disposal errors
-          }
-          synth = null;
+        if (!audioContext) {
+          audioContext = new (window.AudioContext ||
+            window.webkitAudioContext)();
         }
 
-        synth = new Tone.PolySynth(Tone.Synth, {
-          oscillator: { type: "square" },
-          envelope: { attack: 0.01, decay: 0.1, sustain: 0.1, release: 0.5 },
-        }).toDestination();
+        // Check loop mode
+        const loopMode = document.getElementById("loopMode").checked;
 
-        const now = Tone.now() + 0.1;
-        const startTime = now;
+        // Create a new source node
+        audioSource = audioContext.createBufferSource();
+        audioSource.buffer = current.audioBuffer;
+        audioSource.loop = loopMode;
+        audioSource.connect(audioContext.destination);
+
+        // Start playback
+        startTime = audioContext.currentTime;
+        startOffset = 0;
+        audioSource.start(0, startOffset);
         isPlaying = true;
 
-        // Store reference to current synth for animation closure
-        const currentSynth = synth;
-
-        // Get max duration for animation
-        let maxEndTime = 0;
-        midi.data.tracks.forEach((track) => {
-          track.notes.forEach((note) => {
-            const endTime = note.time + note.duration;
-            if (endTime > maxEndTime) maxEndTime = endTime;
-
-            // Only trigger if synth is still valid
-            if (currentSynth === synth && isPlaying) {
-              currentSynth.triggerAttackRelease(
-                note.name,
-                note.duration,
-                now + note.time,
-                note.velocity
-              );
-            }
-          });
-        });
-
-        // Animate piano roll
-        function animate() {
-          // Check if we should stop (synth changed or stopped)
-          if (!isPlaying || currentSynth !== synth) {
-            return;
-          }
-
-          const elapsed = Tone.now() - startTime;
-          drawPianoRoll(elapsed);
-
-          if (elapsed < maxEndTime) {
-            animationId = requestAnimationFrame(animate);
-          } else {
+        // Handle when audio ends (for non-looping)
+        audioSource.onended = () => {
+          if (isPlaying && !loopMode) {
             isPlaying = false;
             drawPianoRoll(-1);
           }
+        };
+
+        function animate() {
+          if (!isPlaying) {
+            drawPianoRoll(-1);
+            return;
+          }
+
+          // Calculate current time in the audio
+          const elapsed = audioContext.currentTime - startTime + startOffset;
+          const duration = current.audioBuffer.duration;
+          const currentTime = loopMode
+            ? elapsed % duration
+            : Math.min(elapsed, duration);
+
+          drawPianoRoll(currentTime);
+          animationId = requestAnimationFrame(animate);
         }
         animate();
       }
 
-      function playWav() {
-        const current = getCurrentMidi();
-        if (current && current.wavUrl) {
-          stopMidi(); // Stop MIDI if it's playing
-          wavAudio.src = current.wavUrl;
-          wavAudio.play();
-          isPlaying = true;
-
-          function animate() {
-            // Check if we should stop (audio paused, ended, or flag cleared)
-            if (!isPlaying || wavAudio.paused || wavAudio.ended) {
-              isPlaying = false;
-              drawPianoRoll(-1);
-              return;
-            }
-
-            // Use audio element's current time for accurate sync
-            const currentTime = wavAudio.currentTime;
-            drawPianoRoll(currentTime);
-
-            animationId = requestAnimationFrame(animate);
-          }
-          animate();
-        }
-      }
-
-      function stopMidi() {
+      function stopWav() {
         if (isStopping) return;
         isStopping = true;
 
         isPlaying = false;
 
-        if (!wavAudio.paused) {
-          wavAudio.pause();
-          wavAudio.currentTime = 0;
+        // Stop Web Audio API source
+        if (audioSource) {
+          try {
+            audioSource.stop();
+            audioSource.disconnect();
+          } catch (e) {
+            // Source may already be stopped
+          }
+          audioSource = null;
         }
 
         if (animationId) {
           cancelAnimationFrame(animationId);
           animationId = null;
-        }
-
-        if (synth) {
-          try {
-            synth.releaseAll();
-            synth.dispose();
-          } catch (e) {
-            // Synth may already be disposed, ignore
-          }
-          synth = null;
-        }
-
-        try {
-          Tone.Transport.stop();
-        } catch (e) {
-          // Ignore transport errors
         }
 
         drawPianoRoll(-1);

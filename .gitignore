@@ -6,7 +6,7 @@ dist/
 wheels/
 *.egg-info
 *.mid
-*.wav
+
 
 .DS_Store
 

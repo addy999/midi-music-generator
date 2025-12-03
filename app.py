@@ -5,7 +5,14 @@ import io
 
 # import mido
 from litellm import completion
-from flask import Flask, render_template, request, jsonify, send_file
+from flask import (
+    Flask,
+    render_template,
+    request,
+    jsonify,
+    send_file,
+    send_from_directory,
+)
 from midiutil import MIDIFile
 
 app = Flask(__name__)
@@ -18,6 +25,16 @@ example_1 = open("jazz.json", "r").read()
 @app.route("/")
 def index():
     return render_template("index.html")
+
+
+@app.route("/static/samples/<path:filename>")
+def serve_sample(filename):
+    """Serve sample audio files from templates/samples directory"""
+    return send_from_directory(
+        "samples",
+        filename,
+        mimetype="audio/wav",
+    )
 
 
 @app.route("/generate_midi", methods=["POST"])
