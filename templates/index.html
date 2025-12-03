@@ -934,7 +934,27 @@
             return;
           }
 
-          // Generate all variations in parallel
+          // Initialize variations array with placeholders
+          variations = Array(variationCount)
+            .fill(null)
+            .map(() => ({
+              blob: null,
+              data: null,
+              wavBlob: null,
+              wavUrl: null,
+              audioBuffer: null,
+            }));
+
+          // Show variation tabs immediately if more than 1
+          if (variationCount > 1) {
+            variationsContainer.style.display = "block";
+            renderVariationTabs();
+          }
+
+          let completedCount = 0;
+          let hasError = false;
+
+          // Generate all variations in parallel, processing each as it completes
           const fetchPromises = [];
           for (let i = 0; i < variationCount; i++) {
             const promise = fetch("/generate_midi", {
@@ -946,48 +966,64 @@
                 variation_seed: i,
                 llm_settings: llmSettings,
               }),
-            }).then(async (response) => {
-              if (!response.ok) {
-                let err = await response.json();
-                throw new Error(err.error || "Server error");
-              }
-              const blob = await response.blob();
-              const arrayBuffer = await blob.arrayBuffer();
-              const midiData = new Midi(arrayBuffer);
-              return { blob, data: midiData, index: i };
-            });
+            })
+              .then(async (response) => {
+                if (!response.ok) {
+                  let err = await response.json();
+                  throw new Error(err.error || "Server error");
+                }
+                const blob = await response.blob();
+                const arrayBuffer = await blob.arrayBuffer();
+                const midiData = new Midi(arrayBuffer);
+
+                // Store the variation immediately
+                variations[i] = {
+                  blob,
+                  data: midiData,
+                  wavBlob: null,
+                  wavUrl: null,
+                  audioBuffer: null,
+                };
+
+                completedCount++;
+                status.innerText = `Generated ${completedCount}/${variationCount} variation${
+                  variationCount > 1 ? "s" : ""
+                }...`;
+
+                // Show controls and visualizer when first variation is ready
+                if (completedCount === 1) {
+                  controls.style.display = "block";
+                  visualizerContainer.style.display = "block";
+                  currentVariationIndex = i;
+                  renderVariationTabs();
+                  drawPianoRoll();
+                  // Start WAV generation for first variation
+                  generateWav(i);
+                } else {
+                  // Generate WAV for subsequent variations in background
+                  generateWav(i);
+                  // Update tabs to show this variation is ready
+                  renderVariationTabs();
+                }
+              })
+              .catch((e) => {
+                hasError = true;
+                console.error(`Error generating variation ${i + 1}:`, e);
+                throw e;
+              });
             fetchPromises.push(promise);
           }
 
-          // Wait for all to complete
-          const results = await Promise.all(fetchPromises);
+          // Wait for all to complete (or fail)
+          await Promise.allSettled(fetchPromises);
 
-          // Sort by index to maintain order
-          results.sort((a, b) => a.index - b.index);
-          variations = results.map((r) => ({
-            blob: r.blob,
-            data: r.data,
-            wavBlob: null,
-            wavUrl: null,
-          }));
-
-          status.innerText = `Generated ${variationCount} variation${
-            variationCount > 1 ? "s" : ""
-          }!`;
-          controls.style.display = "block";
-          visualizerContainer.style.display = "block";
-
-          // Show variation tabs if more than 1
-          if (variationCount > 1) {
-            variationsContainer.style.display = "block";
-            renderVariationTabs();
+          if (hasError) {
+            status.innerText = `Some variations failed to generate. ${completedCount}/${variationCount} completed.`;
+          } else {
+            status.innerText = `Generated ${variationCount} variation${
+              variationCount > 1 ? "s" : ""
+            }!`;
           }
-
-          // Draw initial visualization
-          drawPianoRoll();
-
-          // Now, generate the WAV for the first variation
-          generateWav(currentVariationIndex);
         } catch (e) {
           status.innerText = "Error: " + e.message;
           console.error(e);
@@ -1052,19 +1088,37 @@
         const tabs = document.getElementById("variationTabs");
         tabs.innerHTML = "";
 
-        variations.forEach((_, i) => {
+        variations.forEach((variation, i) => {
           const tab = document.createElement("span");
-          tab.className = `variation-tab ${
-            i === currentVariationIndex ? "active" : ""
-          }`;
-          tab.innerText = `#${i + 1}`;
-          tab.onclick = () => selectVariation(i);
+          const isReady = variation && variation.blob && variation.data;
+          const isActive = i === currentVariationIndex;
+
+          tab.className = `variation-tab ${isActive ? "active" : ""}`;
+
+          // Show status: ready, loading, or number
+          if (isReady) {
+            tab.innerText = `#${i + 1}`;
+            tab.onclick = () => selectVariation(i);
+            tab.style.cursor = "pointer";
+            tab.style.opacity = "1";
+          } else {
+            tab.innerText = `#${i + 1} ⏳`;
+            tab.style.cursor = "wait";
+            tab.style.opacity = "0.5";
+          }
+
           tabs.appendChild(tab);
         });
       }
 
       function selectVariation(index) {
         if (index === currentVariationIndex) return;
+
+        // Check if variation is ready
+        const variation = variations[index];
+        if (!variation || !variation.blob || !variation.data) {
+          return; // Can't switch to a variation that's not ready yet
+        }
 
         const wasPlaying = isPlaying || !wavAudio.paused;
 
@@ -1084,11 +1138,15 @@
           document.getElementById("downloadWavBtn").style.display =
             "inline-block";
         } else {
-          generateWav(index);
+          document.getElementById(
+            "wavStatus"
+          ).innerText = `Converting variation #${index + 1} to WAV...`;
+          document.getElementById("playWavBtn").style.display = "none";
+          document.getElementById("downloadWavBtn").style.display = "none";
         }
 
-        // Restart playback on new variation
-        if (wasPlaying) {
+        // Restart playback on new variation if WAV is ready
+        if (wasPlaying && current.wavBlob) {
           // Small delay to ensure clean state
           setTimeout(() => playWav(), 50);
         }
